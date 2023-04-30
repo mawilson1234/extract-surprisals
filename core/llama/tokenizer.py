@@ -56,6 +56,9 @@ class Tokenizer:
 		return t
 	
 	def decode(self, t: List[int]) -> str:
+		if isinstance(t, int):
+			t = [t]
+		
 		if isinstance(t, torch.Tensor):
 			if len(t.size()) > 0:
 				t = [x.item() for x in t]

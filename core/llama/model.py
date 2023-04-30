@@ -15,6 +15,15 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class LLaMAOutput():
+	# dummy class that allows us to
+	# access logit attributes like in the HF API
+	def __init__(self, logits):
+		self.logits = logits
+	
+	def __getitem__(self, key):
+		return getattr(self, key)
+
 @dataclass
 class ModelArgs:
 	dim: int = 512
@@ -228,7 +237,7 @@ class Transformer(nn.Module):
 		)
 	
 	@torch.inference_mode()
-	def forward(self, tokens: torch.Tensor, start_pos: int):
+	def forward(self, tokens: torch.Tensor, start_pos: int = 0):
 		_bsz, seqlen = tokens.shape
 		h = self.tok_embeddings(tokens)
 		self.freqs_cis = self.freqs_cis.to(h.device)
@@ -243,5 +252,5 @@ class Transformer(nn.Module):
 			h = layer(h, start_pos, freqs_cis, mask)
 		
 		h = self.norm(h)
-		output = self.output(h)
+		output = LLaMAOutput(logits=self.output(h))
 		return output

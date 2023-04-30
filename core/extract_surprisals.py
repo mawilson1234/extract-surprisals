@@ -271,6 +271,7 @@ def load_llama_tokenizer(
 	'''
 	tokenizer = Tokenizer(model_path=tokenizer_path)
 	setattr(tokenizer, 'name_or_path', tokenizer_path)
+	setattr(tokenizer, 'pad_token_id', tokenizer.pad_id)
 	
 	return tokenizer
 
@@ -396,7 +397,7 @@ def preprocess_dataset(
 		else:
 			model_inputs = {
 				'input_ids': [
-					torch.tensor(tokenizer.encode(text, bos=True, eos=False)) for text in examples['text']
+					torch.tensor(tokenizer.encode(text, bos=True, eos=True)) for text in examples['text']
 				]
 			}
 		
@@ -568,13 +569,8 @@ def evaluate_batch(
 	if batch_metadata is None:
 		batch_metadata = {}
 	
-	if 'llama' in model.config.name_or_path:
-		model_kwargs = dict(tokens=inputs['input_ids'])
-	else:
-		model_kwargs = inputs
-	
 	with torch.no_grad():
-		batch_outputs = model(**model_kwargs)
+		batch_outputs = model(**inputs)
 	
 	# convert to base 2 instead of base e
 	batch_surprisals = -(1/torch.log(torch.tensor(2.))) * F.log_softmax(batch_outputs.logits, dim=-1)
@@ -585,7 +581,11 @@ def evaluate_batch(
 	records = zip(input_nums, input_texts, next_word_ids, batch_surprisals, batch_metadata)
 	for batch_position, (input_num, input_text, next_word_tokens, surprisal, example_metadata) in enumerate(records):
 		input_words = input_text.split()
-		aligned_tokens = align_words_to_subword_tokens(tokenizer=tokenizer, words=input_words, tokens=next_word_tokens)
+		aligned_tokens = align_words_to_subword_tokens(
+			tokenizer=tokenizer, 
+			words=input_words, 
+			tokens=next_word_tokens
+		)
 		
 		tokens_seen = 0
 		for word_num, tokens in enumerate(aligned_tokens):
@@ -600,6 +600,9 @@ def evaluate_batch(
 					'token_is_start_of_word': token_num == 0,
 					'token_is_word': len(tokens) == 1,
 					'surprisal': batch_surprisals[batch_position,tokens_seen,token].item(),
+					'predicted_token': tokenizer.decode(
+						torch.argmin(batch_surprisals[batch_position,tokens_seen,:], dim=-1).item()
+					),
 					**example_metadata,
 				}])
 				tokens_seen += 1
@@ -656,11 +659,7 @@ def tokenize_texts(tokenizer: AutoTokenizer, text: List[str]) -> List[List[int]]
 	if not 'llama' in tokenizer.name_or_path:
 		tokenized = tokenizer(text, add_special_tokens=False)['input_ids']
 	else:
-		tokenized = {
-			'input_ids': [
-				tokenizer.encode(ex, bos=False, eos=False) for ex in text
-			]
-		}
+		tokenized = [tokenizer.encode(ex, bos=False, eos=False) for ex in text]
 	
 	return tokenized
 
