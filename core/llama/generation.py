@@ -35,6 +35,16 @@ class LLaMA:
 			a torch.Tensor of shape (batch_size, max_seq_len, vocab_size) with logits
 			for the next token at each position in each sequence in the batch
 		'''
+		# pad_id is -1, which isn't in the model. for evaluation, we
+		# need to replace it with a token that is in the model. since
+		# we never care about predictions past the final actual token,
+		# this shouldn't cause any problems. we detach first so
+		# that we don't modify in-place, since we want to be able
+		# to know which eos are actual eos and which are pads in the 
+		# calling context
+		input_ids = input_ids.detach().clone()
+		input_ids[input_ids == self.tokenizer.pad_id] = self.tokenizer.eos_id
+		
 		return self.model.forward(tokens=input_ids)
 	
 	def generate(

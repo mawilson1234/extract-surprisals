@@ -17,7 +17,7 @@ SCRIPT_TEMPLATE: str = '\n'.join([
 	'',
 	'module load miniconda',
 	'',
-	'source activate /gpfs/gibbs/project/frank/ref4/conda_envs/py38-condgen',
+	'source activate ext-surp',
 	'',
 	'echo "Running script {FILENAME}"',
 	'echo ""',

@@ -1,16 +1,13 @@
 name: ext-surp
 
 dependencies:
-  - pytorch::pytorch
-  - pytorch::torchvision
-  - pytorch::torchaudio
-  - python
-  - huggingface::transformers
-  - sentencepiece
-  - protobuf
   - datasets
   - pandas
-  - tqdm
   - pip
+  - python
+  - pytorch
+  - sentencepiece
+  - tqdm
+  - transformers
   - pip:
-    - sball
+      - sball
