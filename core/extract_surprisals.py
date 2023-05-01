@@ -49,13 +49,15 @@ from tqdm import tqdm
 from typing import *
 from pathlib import Path
 from torch.utils.data import DataLoader
-from datasets import load_dataset, Dataset
+from datasets import load_dataset, Dataset, DatasetDict
 from dataclasses import dataclass, field
 from transformers import (
 	AutoConfig,
 	AutoTokenizer,
 	HfArgumentParser,
 	AutoModelForCausalLM,
+	AutoModelForMaskedLM,
+	T5ForConditionalGeneration
 )
 
 if __name__ == '__main__':
@@ -212,8 +214,18 @@ def load_model(model_name_or_path: str, *args, **kwargs):
 	'''
 	Loads the model using the appropriate function.
 	'''
-	if model_name_or_path in ALL_MODELS:
+	if model_name_or_path in NEXT_WORD_MODELS:
 		return AutoModelForCausalLM.from_pretrained(
+			model_name_or_path, *args, **kwargs
+		)
+	
+	if model_name_or_path in MASKED_LANGUAGE_MODELS:
+		return AutoModelForMaskedLM.from_pretrained(
+			model_name_or_path, *args, **kwargs
+		)
+	
+	if model_name_or_path in T5_MODELS:
+		return T5ForConditionalGeneration.from_pretrained(
 			model_name_or_path, *args, **kwargs
 		)
 	
@@ -243,6 +255,10 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		use_auth_token=model_args.use_auth_token,
 		**model_args.tokenizer_kwargs,
 	)
+	
+	if tokenizer.mask_token_id is None:
+		if model_args.model_name_or_path in T5_MODELS:
+			tokenizer.mask_token_id = tokenizer.get_vocab()['<extra_id_0>']
 	
 	model = load_model(
 		model_args.model_name_or_path,
@@ -358,11 +374,78 @@ def load_llama(
 	
 	return generator
 
-def preprocess_dataset(
+def expand_with_masks(
+	inputs: torch.Tensor, 
 	dataset: Dataset, 
+	mask_id: int, 
+	dont_mask: List[int], 
+	metadata: List[Dict] = None
+) -> torch.Tensor:
+	'''
+	Expands a list of inputs by generating a new set of inputs
+	where each example replaces exactly one token with the mask
+	token, ignoring ignore_tokens (= special tokens).
+	'''
+	if metadata is None:
+		metadata = [{}] * inputs['input_ids'].shape[0]
+	
+	def _expand_with_masks(example: torch.Tensor, text_example: str, metadata: Dict, mask_id: int, dont_mask: List[int]) -> torch.Tensor:
+		'''
+		Expands a single example to a list of examples, constructed
+		by replacing each non-special token (=ignore_tokens) with the mask token id.
+		This allows us to get surprisal for each position in the sentence from
+		a masked language model without telling it what the token in that
+		position is.
+		'''
+		ignore_mask = [x not in dont_mask for x in example['input_ids']]
+		expanded_length = sum(ignore_mask)
+		
+		expanded = dict()
+		for k in example:
+			expanded[k] = example[k].expand(1, example[k].shape[0]).repeat(expanded_length, 1)
+		
+		expanded_metadata = [metadata] * expanded_length
+		expanded_text = [text_example] * expanded_length
+		
+		starting_id = ignore_mask.index(True)
+		
+		token_index = starting_id
+		for row in expanded['input_ids']:
+			index_to_mask = token_index
+			if row[index_to_mask] not in dont_mask:
+				row[index_to_mask] = mask_id
+			
+			token_index += 1
+		
+		return expanded_text, expanded, expanded_metadata
+	
+	expanded = dict(zip(inputs.keys(), ([] for _ in inputs.keys())))
+	expanded_texts = []
+	expanded_metadata = []
+	for example in zip(*inputs.values(), dataset['test']['text'], metadata):
+		ex_metadata = example[-1]
+		text_example = example[-2]
+		example = dict(zip(inputs.keys(), example[:-2]))
+		text_expanded, ex_expanded, me_expanded = _expand_with_masks(example, text_example, ex_metadata, mask_id, dont_mask)
+		for k in expanded:
+			expanded[k].extend(ex_expanded[k])
+		
+		expanded_texts.extend(text_expanded)
+		expanded_metadata.extend(me_expanded)
+	
+	for k in expanded:
+		expanded[k] = torch.stack(expanded[k])
+	
+	expanded_dataset = DatasetDict(dict(test=Dataset.from_dict(dict(text=expanded_texts))))
+	
+	return expanded_dataset, expanded, expanded_metadata
+
+def preprocess_dataset(
+	dataset: Dataset,
+	metadata: List[Dict], 
 	data_args: DataArguments, 
 	tokenizer: AutoTokenizer
-) -> Dataset:
+) -> Tuple:
 	'''
 	Formats the dataset for use with a model.
 	
@@ -374,7 +457,11 @@ def preprocess_dataset(
 		tokenizer (AutoTokenizer)	: the tokenizer to use to prepare the examples for the model.
 	
 	returns:
+		Text dataset 				: the text dataset. returned unchanged unless
+									  the input is expanded for use with a masked language model
 		Dataset 					: the dataset formatted for use with a model.
+		Metadata 					: the metadata for the model. returned unchanged unless
+									  the input is expanded for use with a masked language model
 	'''
 	drop_cols = dataset['test'].column_names
 	
@@ -388,12 +475,21 @@ def preprocess_dataset(
 				truncation=True
 			)
 			
-			for sequence, attention in zip(model_inputs['input_ids'], model_inputs['attention_mask']):
-				# add the bos token to models that don't automatically include it
-				# such as gpt2. we also need to ensure the attention mask is the same length
-				if not sequence[0] == tokenizer.bos_token_id:
-					sequence.insert(0, tokenizer.bos_token_id)
-					attention.insert(0, 1)
+			start_ids = [tokenizer.bos_token_id, tokenizer.cls_token_id]
+			start_ids = [token_id for token_id in start_ids if token_id is not None]
+			if any(start_ids):
+				start_id = start_ids[0]
+				for i in range(len(model_inputs['input_ids'])):
+					# add the cls/bos token to models that don't automatically include it
+					# such as gpt2. we also need to ensure the other keys are the same length
+					if model_inputs['input_ids'][i][0] != start_id:
+						model_inputs['input_ids'][i].insert(0, start_id)
+						for k in model_inputs.keys():
+							if k == 'attention_mask':
+								model_inputs[k][i].insert(0, 1)
+							
+							if k == 'token_type_ids':
+								model_inputs[k][i].insert(0, 0)
 		else:
 			model_inputs = {
 				'input_ids': [
@@ -418,12 +514,29 @@ def preprocess_dataset(
 	
 	test_dataset.set_format(type='torch')
 	
-	return test_dataset
+	if tokenizer.name_or_path in MASKED_LANGUAGE_MODELS | T5_MODELS:
+		dont_mask = [t[0] for t in tokenizer(tokenizer.all_special_tokens, add_special_tokens=False)['input_ids']]
+		mask_id = tokenizer.mask_token_id
+		# we don't use test_dataset.to_dict() because that converts it to a list of lists of ints,
+		# and the expand_with_masks function takes Tensors
+		inputs = {f: test_dataset[f] for f in test_dataset.features}
+		dataset, inputs, metadata = expand_with_masks(
+			inputs=inputs, 
+			dataset=dataset, 
+			metadata=metadata, 
+			mask_id=mask_id, 
+			dont_mask=dont_mask
+		)
+		test_dataset = Dataset.from_dict(inputs)
+		test_dataset.set_format(type='torch')
+	
+	return dataset, test_dataset, metadata
 
 def evaluate_model(
 	model: Union[AutoModelForCausalLM, LLaMA],
 	tokenizer: AutoTokenizer,
 	examples: Dataset,
+	metadata: List[Dict],
 	test_dataset: Dataset,
 	data_args: DataArguments
 ) -> None:
@@ -441,6 +554,7 @@ def evaluate_model(
 											  replaced with constants.DEFAULT_MASK_TOKEN. Currently
 											  evaluation of more than one replaced span is
 											  not supported.
+		metadata (List[Dict])				: the metadata for each example
 		data_args (DataArguments)			: the arguments containing information about the data.
 											  see the DataArguments class for more details.
 	raises:
@@ -482,9 +596,6 @@ def evaluate_model(
 		batch = list(map(lambda ex: {k: pad_tensor(ex[k], pad=max_len, dim=-1) for k in ex}, batch))
 		batch = {k: torch.stack([ex[k] for ex in batch], dim=0) for k in batch[0].keys()}
 		return batch
-	
-	with gzip.open(data_args.test_file.replace('.txt.gz', '_metadata.json.gz'), 'rt', encoding='utf-8') as in_file:
-		metadata = [json.loads(l) for l in in_file.readlines()]	
 	
 	dataloader = DataLoader(
 		test_dataset,
@@ -539,16 +650,30 @@ def evaluate_model(
 	
 	metrics = metrics.assign(
 		model_name=re.sub('["\']', '', model.config.name_or_path),
+		task=get_model_task(model.config.name_or_path),
 		n_params=f'{round(model.num_parameters()/1000000)}M',
 		test_dataset=test_dataset_name,
 		n_test_examples=test_dataset.num_rows,
 	)
 	
-	move_to_beginning = ['model_name', 'n_params', 'test_dataset', 'n_test_examples']
+	move_to_beginning = ['model_name', 'task', 'n_params', 'test_dataset', 'n_test_examples']
 	metrics = metrics[move_to_beginning + [c for c in metrics.columns if not c in move_to_beginning]]
 	
 	os.makedirs(data_args.output_dir, exist_ok=True)
 	metrics.to_csv(output_pred_file, index=False, na_rep='NA')
+
+def get_model_task(model_name_or_path: str) -> str:
+	'''Returns the model task based on the name.'''
+	if model_name_or_path in NEXT_WORD_MODELS:
+		return 'LM'
+	
+	if model_name_or_path in MASKED_LANGUAGE_MODELS:
+		return 'MLM'
+	
+	if model_name_or_path in SEQ2SEQ_MODELS:
+		return 'Seq2Seq'
+	
+	raise ValueError(f'{model_name_or_path!r} not found in `ALL_MODELS`!')
 
 def evaluate_batch(
 	model: Union[AutoModelForCausalLM, LLaMA],
@@ -567,8 +692,48 @@ def evaluate_batch(
 		input_nums = range(len(inputs['input_ids'].shape[0]))
 	
 	if batch_metadata is None:
-		batch_metadata = {}
+		batch_metadata = [{}] * inputs['input_ids'].shape[0]
 	
+	model_eval_function = get_model_eval_function(model_name_or_path=model.name_or_path)
+	
+	return model_eval_function(
+		model=model,
+		tokenizer=tokenizer,
+		inputs=inputs,
+		input_texts=input_texts,
+		input_nums=input_nums,
+		batch_metadata=batch_metadata
+	)
+	
+def get_model_eval_function(model_name_or_path: str) -> Callable:
+	'''
+	Returns the appropriate function for eval based on the kind of 
+	model.
+	'''
+	if model_name_or_path in NEXT_WORD_MODELS:
+		return evaluate_LM_batch	
+	
+	if model_name_or_path in MASKED_LANGUAGE_MODELS:
+		return evaluate_MLM_batch
+	
+	if model_name_or_path in T5_MODELS:
+		return evaluate_T5_batch
+	
+	raise ValueError(model_not_supported_message(model_name_or_path))
+
+def evaluate_LM_batch(
+	model: Union[AutoModelForCausalLM, LLaMA],
+	tokenizer: AutoTokenizer,
+	inputs: Dict[str,torch.Tensor],
+	input_texts: List[str],
+	input_nums: List[int] = None,
+	batch_metadata: List[Dict] = None,
+) -> List[Dict]:
+	'''
+	Evaluates a batch of examples for a Language Model.
+	For each input, determines the surprisal of each eval token
+	as a prediction for the next token.
+	'''
 	with torch.no_grad():
 		batch_outputs = model(**inputs)
 	
@@ -579,7 +744,7 @@ def evaluate_batch(
 	
 	metrics = []
 	records = zip(input_nums, input_texts, next_word_ids, batch_surprisals, batch_metadata)
-	for batch_position, (input_num, input_text, next_word_tokens, surprisal, example_metadata) in enumerate(records):
+	for input_num, input_text, next_word_tokens, surprisal, example_metadata in records:
 		input_words = input_text.split()
 		aligned_tokens = align_words_to_subword_tokens(
 			tokenizer=tokenizer, 
@@ -599,9 +764,9 @@ def evaluate_batch(
 					'token_id': token,
 					'token_is_start_of_word': token_num == 0,
 					'token_is_word': len(tokens) == 1,
-					'surprisal': batch_surprisals[batch_position,tokens_seen,token].item(),
+					'surprisal': surprisal[tokens_seen,token].item(),
 					'predicted_token': tokenizer.decode(
-						torch.argmin(batch_surprisals[batch_position,tokens_seen,:], dim=-1).item()
+						torch.argmin(surprisal[tokens_seen,:], dim=-1).item()
 					),
 					**example_metadata,
 				}])
@@ -633,8 +798,13 @@ def align_words_to_subword_tokens(
 	'''
 	# pop works backward
 	num_words = len(words)
-	words = words[::-1].copy()
 	tokens = tokens[::-1].copy()
+	words = words[::-1].copy()
+	
+	# handle uncased and cased tokenizers
+	uncased = tokenizer.tokenize('A') == tokenizer.tokenize('a')
+	if uncased:
+		words = [w.lower() for w in words]
 	
 	aligned = []
 	while tokens:
@@ -652,6 +822,200 @@ def align_words_to_subword_tokens(
 	
 	return aligned
 
+def evaluate_MLM_batch(
+	model: AutoModelForMaskedLM,
+	tokenizer: AutoTokenizer,
+	inputs: Dict[str,torch.Tensor],
+	input_texts: List[str],
+	input_nums: List[int] = None,
+	batch_metadata: List[Dict] = None,
+) -> List[Dict]:
+	'''
+	Evaluates a batch of examples for a Language Model.
+	For each input, determines the surprisal of token
+	corresponding to the masked token.
+	'''
+	if batch_metadata is None:
+		batch_metadata = [{}] * inputs['input_ids'].shape[0]
+	
+	with torch.no_grad():
+		batch_outputs = model(**inputs)
+	
+	# these are the positions we want to extract predictions from
+	mask_locations = torch.nonzero(inputs['input_ids'] == tokenizer.mask_token_id, as_tuple=True)[-1]
+	
+	# convert to base 2 instead of base e
+	batch_surprisals = -(1/torch.log(torch.tensor(2.))) * F.log_softmax(batch_outputs.logits, dim=-1)
+	
+	word_ids = tokenize_texts(tokenizer=tokenizer, text=input_texts)
+	
+	special_token_ids = [t[0] for t in tokenizer(tokenizer.all_special_tokens, add_special_tokens=False)['input_ids'] if not t[0] == tokenizer.mask_token_id]
+	starting_ids = [[t not in special_token_ids for t in row].index(True) for row in inputs['input_ids']]
+	
+	metrics = []
+	records = zip(input_nums, input_texts, inputs['input_ids'], starting_ids, mask_locations, word_ids, batch_surprisals, batch_metadata)
+	for input_num, input_text, input_ids, starting_id, mask_location, word_tokens, surprisal, example_metadata in records:
+		input_words = input_text.split()
+		aligned_tokens = align_words_to_subword_tokens(
+			tokenizer=tokenizer, 
+			words=input_words, 
+			tokens=word_tokens
+		)
+		
+		# we need to extract the aligned token set that has the token_num in it,
+		# so we can determine whether it starts a word or not
+		
+		# this tells us which word contains the token in the masked location
+		starting_token_numbers = []
+		for i, _ in enumerate(aligned_tokens):
+			starting_token_numbers.append(sum(len(t) for t in aligned_tokens[:i]))
+		
+		starting_token_num_of_word = mask_location - starting_id
+		while starting_token_num_of_word not in starting_token_numbers:
+			starting_token_num_of_word -= 1
+		
+		# then, we get the tokens for that word,
+		# find the token's position in that word (the location of the mask token),
+		# and extract the actual token we want the prediction for from the word
+		tokens = aligned_tokens[starting_token_numbers.index(starting_token_num_of_word)]
+		token_num_in_word = input_ids[starting_token_num_of_word+starting_id:].tolist().index(tokenizer.mask_token_id)
+		token = tokens[token_num_in_word]
+		word_num = starting_token_numbers.index(starting_token_num_of_word.item())
+		
+		metrics.extend([{
+			'item': input_num,
+			'input_text': input_text,
+			'word_num': word_num,
+			'token_num_in_word': token_num_in_word,
+			'token': tokenizer.decode(token),
+			'token_id': token,
+			'token_is_start_of_word': token_num_in_word == 0,
+			'token_is_word': len(tokens) == 1,
+			'surprisal': surprisal[mask_location,token].item(),
+			'predicted_token': tokenizer.decode(
+				torch.argmin(surprisal[mask_location,:], dim=-1).item()
+			),
+			**example_metadata,
+		}])
+	
+	return metrics
+
+def evaluate_T5_batch(
+	model: AutoModelForMaskedLM,
+	tokenizer: AutoTokenizer,
+	inputs: Dict[str,torch.Tensor],
+	input_texts: List[str],
+	input_nums: List[int] = None,
+	batch_metadata: List[Dict] = None,
+) -> List[Dict]:
+	'''
+	Evaluates a batch of examples for a Language Model.
+	For each input, determines the surprisal of token
+	corresponding to the masked token.
+	'''
+	def prefix_allowed_tokens_fn_factory(tokenizer: AutoTokenizer) -> Callable[[int,torch.Tensor], List[int]]:
+		'''
+		Returns a function that constrains the output generation to start
+		with the mask span token.
+		'''
+		pad_token_id = tokenizer.pad_token_id
+		mask_span_id = tokenizer.mask_token_id
+				
+		def prefix_allowed_tokens_fn(batch_id: int, input_ids: torch.Tensor) -> List[int]:
+			'''
+			Determines which tokens can be predicted at each decoding step, according to the 
+			metadata and general constraints (i.e., mask span token must be first).
+			'''
+			if len(input_ids) == 0:
+				# first token must be the pad token
+				return [pad_token_id]
+			elif len(input_ids) == 1:
+				# second token must be the mask span token
+				return [mask_span_id]
+			else:
+				# subsequent tokens can be anything,
+				# and we will extract the log probabilities
+				# for the eval tokens later
+				return list(range(tokenizer.vocab_size))
+		
+		return prefix_allowed_tokens_fn
+	
+	if batch_metadata is None:
+		batch_metadata = [{}] * inputs['input_ids'].shape[0]
+	
+	with torch.no_grad():
+		batch_outputs = model.generate(
+			inputs['input_ids'],
+			prefix_allowed_tokens_fn=prefix_allowed_tokens_fn_factory(
+				tokenizer=tokenizer
+			),
+			return_dict_in_generate=True,
+			max_new_tokens=2,
+			output_scores=True
+		)
+	
+	# these are the positions we want to extract predictions from
+	# we need them here not to get the surprisal (since that is
+	# always at the final index), but to figure out which word
+	# the token belongs to
+	mask_locations = torch.nonzero(inputs['input_ids'] == tokenizer.mask_token_id, as_tuple=True)[-1]
+	
+	# convert to base 2 instead of base e
+	batch_surprisals = -(1/torch.log(torch.tensor(2.))) * F.log_softmax(batch_outputs['scores'][-1], dim=-1)
+	
+	word_ids = tokenize_texts(tokenizer=tokenizer, text=input_texts)
+	
+	special_token_ids = [t[0] for t in tokenizer(tokenizer.all_special_tokens, add_special_tokens=False)['input_ids'] if not t[0] == tokenizer.mask_token_id]
+	starting_ids = [[t not in special_token_ids for t in row].index(True) for row in inputs['input_ids']]
+	
+	metrics = []
+	records = zip(input_nums, input_texts, inputs['input_ids'], starting_ids, mask_locations, word_ids, batch_surprisals, batch_metadata)
+	for input_num, input_text, input_ids, starting_id, mask_location, word_tokens, surprisal, example_metadata in records:
+		input_words = input_text.split()
+		aligned_tokens = align_words_to_subword_tokens(
+			tokenizer=tokenizer, 
+			words=input_words, 
+			tokens=word_tokens
+		)
+		
+		# we need to extract the aligned token set that has the token_num in it,
+		# so we can determine whether it starts a word or not
+		
+		# this tells us which word contains the token in the masked location
+		starting_token_numbers = []
+		for i, _ in enumerate(aligned_tokens):
+			starting_token_numbers.append(sum(len(t) for t in aligned_tokens[:i]))
+		
+		starting_token_num_of_word = mask_location - starting_id
+		while starting_token_num_of_word not in starting_token_numbers:
+			starting_token_num_of_word -= 1
+		
+		# then, we get the tokens for that word,
+		# find the token's position in that word (the location of the mask token),
+		# and extract the actual token we want the prediction for from the word
+		tokens = aligned_tokens[starting_token_numbers.index(starting_token_num_of_word)]
+		token_num_in_word = input_ids[starting_token_num_of_word+starting_id:].tolist().index(tokenizer.mask_token_id)
+		token = tokens[token_num_in_word]
+		word_num = starting_token_numbers.index(starting_token_num_of_word.item())
+		
+		metrics.extend([{
+			'item': input_num,
+			'input_text': input_text,
+			'word_num': word_num,
+			'token_num_in_word': token_num_in_word,
+			'token': tokenizer.decode(token),
+			'token_id': token,
+			'token_is_start_of_word': token_num_in_word == 0,
+			'token_is_word': len(tokens) == 1,
+			'surprisal': surprisal[token].item(),
+			'predicted_token': tokenizer.decode(
+				torch.argmin(surprisal, dim=-1).item()
+			),
+			**example_metadata,
+		}])
+	
+	return metrics
+
 def tokenize_texts(tokenizer: AutoTokenizer, text: List[str]) -> List[List[int]]:
 	'''
 	Tokenize a list of examples without special tokens for use during evaluation.
@@ -663,6 +1027,15 @@ def tokenize_texts(tokenizer: AutoTokenizer, text: List[str]) -> List[List[int]]
 	
 	return tokenized
 
+def load_metadata(dataset_path: str) -> List[Dict]:
+	'''
+	Loads the metadata file for a dataset.
+	'''
+	with gzip.open(dataset_path.replace('.txt.gz', '_metadata.json.gz'), 'rt', encoding='utf-8') as in_file:
+		metadata = [json.loads(l) for l in in_file.readlines()]	
+	
+	return metadata
+
 def extract_surprisals() -> None:
 	'''Main function.'''
 	model_args, data_args = parse_cl_arguments(ModelArguments, DataArguments)
@@ -671,13 +1044,13 @@ def extract_surprisals() -> None:
 	logger.info(f'Evaluation parameters: {data_args}')
 	
 	dataset = load_dataset('text', data_files={'test': data_args.test_file})
-	
+	metadata = load_metadata(data_args.test_file)
 	if not 'llama' in model_args.model_name_or_path:
 		tokenizer, model = load_HF_tokenizer_and_model(model_args)
-		test_dataset = preprocess_dataset(dataset=dataset, data_args=data_args, tokenizer=tokenizer)
+		dataset, test_dataset, metadata = preprocess_dataset(dataset=dataset, metadata=metadata, data_args=data_args, tokenizer=tokenizer)
 	else:
 		tokenizer = load_llama_tokenizer(tokenizer_path=model_args.tokenizer_name)
-		test_dataset = preprocess_dataset(dataset=dataset, data_args=data_args, tokenizer=tokenizer)
+		dataset, test_dataset, metadata = preprocess_dataset(dataset=dataset, metadata=metadata, data_args=data_args, tokenizer=tokenizer)
 		max_seq_len = max(len(ex) for ex in test_dataset['input_ids'])
 		model = load_llama(
 			ckpt_dir=model_args.model_name_or_path, 
@@ -690,6 +1063,7 @@ def extract_surprisals() -> None:
 		model=model, 
 		tokenizer=tokenizer, 
 		examples=dataset['test'],
+		metadata=metadata,
 		test_dataset=test_dataset, 
 		data_args=data_args
 	)
