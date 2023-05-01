@@ -9,5 +9,7 @@ dependencies:
   - sentencepiece
   - tqdm
   - transformers
+  - jax
+  - flax
   - pip:
       - sball

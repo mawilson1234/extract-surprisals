@@ -4,7 +4,7 @@ A simple interface for extracting surprisals for each word position from autoreg
 
 ## Detailed description
 
-This repo provides code to make extracting single-token predictions from autoregressive language models.
+This repo provides code to make extracting token-by-token predictions for target sentences from auto-regressive language models, masked language models, and conditional generation models (= T5 models) easy.
 
 First, we will discuss the structure of the datasets, since this will make it easier to discuss how evaluation occurs.
 
@@ -17,7 +17,7 @@ Datasets go in the `data` directory. Each subdirectory contains a single dataset
 The `$dataset.txt.gz` file contains a single example per line.
 
 ```
-I want to evaluate this sentence.
+I want to evaluate this sentence, word-by-word.
 I also would like to evaluate this sentence.
 ...
 ```
@@ -59,7 +59,17 @@ You can also specify the following optional arguments:
 
 ### Under the hood
 
-The models are run autoregressively, and for each input position, produce a probability distribution of the next token position given the input up to that position. For each position, the surprisal of the actual next token is extracted.
+Auto-regressive models represent the most straightforward case. Such models are run autoregressively, and for each input position, produce a probability distribution of the next token position given the input up to that position. For each position, the surprisal of the actual next token from the input is extracted.
+
+For masked language models and conditional generation models, each input sentence is tokenized, and then repeated with each non-special token replaced with a mask or mask span token.  Without masking, the models would have a much higher probability of predicting the actual word, so masking makes the evaluation more meaningful: how surprising is the actual word when it is not given? The metadata is also automatically repeated the correct number of times so it lines up with the repeated inputs. Then, the models are run and surprisal values are extracted for each position when it is masked in each sentence for the token that goes there in the actual sentence.
+
+For conditional generation models, we additionally use teacher-forcing to force the first output token to be the BOS token and the second output token to be the mask token, before extracting the surprisal value from the final token.
+
+### Extensions
+
+If you want to add a new model that falls into one of these bins, it's pretty easy. If its tokenizer has no special requirements, you can just add the model in the correct set in `core/constants.py`. If you want to run it as a masked language model, it should be added to `MASKED_LANGUAGE_MODELS`; to run it as an autoregressive language model, add it to `NEXT_WORD_MODELS`; and to run it on a conditional generation task, you should add it to `T5_MODELS`.
+
+If there are special things about the model's tokenizer, you should modify the `get_tokenizer_kwargs` function in `core/constants.py` (e.g., the BabyBERTa model tokenizers require `add_prefix_space=True`).
 
 ### Setup
 

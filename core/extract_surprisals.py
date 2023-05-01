@@ -134,6 +134,7 @@ class ModelArguments:
 			del self.tokenizer_kwargs['use_fast']
 		
 		self.use_auth_token = None if not self.use_auth_token else self.use_auth_token
+		self.from_flax = self.model_name_or_path in MUELLER_T5_MODELS
 
 @dataclass
 class DataArguments:
