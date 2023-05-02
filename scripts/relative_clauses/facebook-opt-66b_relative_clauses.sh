@@ -16,4 +16,5 @@ echo ""
 
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/opt-66b' \
-	--test_file data/relative_clauses/relative_clauses.txt.gz
+	--test_file data/relative_clauses/relative_clauses.txt.gz \
+	--save_tmp

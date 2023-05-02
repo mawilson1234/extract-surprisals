@@ -4,7 +4,7 @@
 #SBATCH --output=joblogs/%x_%j.txt
 #SBATCH --mem=78G
 #SBATCH --partition=day
-#SBATCH --time=04:00:00
+#SBATCH --time=16:00:00
 #SBATCH --mail-type=END,FAIL,INVALID_DEPEND
 
 module load miniconda

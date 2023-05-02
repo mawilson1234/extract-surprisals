@@ -245,7 +245,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		model_args.config_name,
 		cache_dir=model_args.cache_dir,
 		revision=model_args.model_revision,
-		use_auth_token=model_args.use_auth_token,
+		use_auth_token=model_args.use_auth_token
 	)
 	
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -263,6 +263,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 	
 	model = load_model(
 		model_args.model_name_or_path,
+		from_flax=model_args.from_flax,
 		config=config,
 		cache_dir=model_args.cache_dir,
 		revision=model_args.model_revision,
@@ -517,6 +518,13 @@ def preprocess_dataset(
 	
 	if tokenizer.name_or_path in MASKED_LANGUAGE_MODELS | T5_MODELS:
 		dont_mask = [t[0] for t in tokenizer(tokenizer.all_special_tokens, add_special_tokens=False)['input_ids']]
+		
+		# babyt5 handles commas and digits incorrectly; it tokenizes them as <unk>.
+		# this is a very specific hack to get around this, without causing
+		# other errors
+		if 'babyt5' in tokenizer.name_or_path:
+			dont_mask = [t for t in dont_mask if not t == tokenizer.unk_token_id]
+		
 		mask_id = tokenizer.mask_token_id
 		# we don't use test_dataset.to_dict() because that converts it to a list of lists of ints,
 		# and the expand_with_masks function takes Tensors
@@ -607,6 +615,11 @@ def evaluate_model(
 	if not 'llama' in model.name_or_path:
 		model.eval()
 	
+	# we need to make the directory early
+	# if we're saving tmp results there
+	if data_args.save_tmp:
+		os.makedirs(data_args.output_dir, exist_ok=True)
+	
 	n_observed_examples = 0
 	metrics = []
 	for i, inputs in tqdm(enumerate(dataloader), total = len(dataloader)):
@@ -660,7 +673,11 @@ def evaluate_model(
 	move_to_beginning = ['model_name', 'task', 'n_params', 'test_dataset', 'n_test_examples']
 	metrics = metrics[move_to_beginning + [c for c in metrics.columns if not c in move_to_beginning]]
 	
-	os.makedirs(data_args.output_dir, exist_ok=True)
+	# we've already created the output directory
+	# if we're saving tmp files
+	if not data_args.save_tmp:
+		os.makedirs(data_args.output_dir, exist_ok=True)
+	
 	metrics.to_csv(output_pred_file, index=False, na_rep='NA')
 
 def get_model_task(model_name_or_path: str) -> str:
@@ -799,23 +816,49 @@ def align_words_to_subword_tokens(
 	'''
 	# pop works backward
 	num_words = len(words)
-	tokens = tokens[::-1].copy()
-	words = words[::-1].copy()
+	original_tokens = tokens.copy()	
+	tokens = tokens[::-1]
+	original_words = words.copy()
+	words = words[::-1]
 	
 	# handle uncased and cased tokenizers
-	uncased = tokenizer.tokenize('A') == tokenizer.tokenize('a')
+	tokenizer_kwargs = dict()
+	if 'llama' in tokenizer.name_or_path:
+		tokenizer_kwargs = dict(bos=False, eos=False)
+	
+	uncased = tokenizer.tokenize('A', **tokenizer_kwargs) == tokenizer.tokenize('a', **tokenizer_kwargs)
 	if uncased:
 		words = [w.lower() for w in words]
 	
-	aligned = []
-	while tokens:
-		aligned_tokens = [tokens.pop()]
-		word = words.pop()
-		
-		while tokenizer.decode(aligned_tokens).strip() != word:
-			aligned_tokens += [tokens.pop()]
-		
-		aligned.append(aligned_tokens)
+	try:
+		aligned = []
+		while tokens:
+			aligned_tokens = [tokens.pop()]
+			word = words.pop()
+			
+			# we need to replace all spaces here rather than
+			# just stripping because some tokenizer don't handle
+			# words with punctuation in the middle correctly
+			# e.g, 'bert-large-cased' tokenizes 're-wrapped' as
+			# [1231, 118, 4293], but decodes that sequence as
+			# 're - wrapped', with spaces in the middle.
+			if 'babyt5' in tokenizer.name_or_path:
+				# babyt5 doesn't tokenize commas correctly, but
+				# as its <unk> token. in general, an <unk> token
+				# should not be used to identify a word, since
+				# not all <unk> tokens have the same source.
+				# in this case, we build in a very specific hack.
+				# we don't want a more general solution, since
+				# that could mask an actually problematic case
+				while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != re.sub('[0-9,]', tokenizer.unk_token, word):
+					aligned_tokens += [tokens.pop()]
+			else:
+				while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != word:
+					aligned_tokens += [tokens.pop()]
+			
+			aligned.append(aligned_tokens)
+	except Exception:
+		breakpoint()
 	
 	assert len(aligned) == num_words, (
 		f'Unable to find {num_words} in text.'

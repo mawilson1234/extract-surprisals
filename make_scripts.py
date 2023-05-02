@@ -29,25 +29,25 @@ SCRIPT_TEMPLATE: str = '\n'.join([
 
 # these models need to be run with special options
 BIG_MODELS: Dict[str, Dict[str,str]] = {
-	'google/t5-efficient-xxl':	{'mem': '169G', 'time': '08:00:00',    'partition': 'bigmem'},
-	'facebook/opt-2.7b':		{'mem': '48G',  'time': '02:00:00',    'partition': 'day'},
-	'facebook/opt-6.7b':		{'mem': '48G',  'time': '02:00:00',    'partition': 'day'},
-	'facebook/opt-13b':			{'mem': '78G',  'time': '04:00:00',    'partition': 'day'},
-	'facebook/opt-30b':			{'mem': '169G', 'time': '08:00:00',    'partition': 'bigmem'},
+	'google/t5-efficient-xxl':	{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/opt-2.7b':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/opt-6.7b':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/opt-13b':			{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/opt-30b':			{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 	'facebook/opt-66b':			{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 	'facebook/opt-175b':		{'mem': '700G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/llama/7B':		{'mem': '48G',  'time': '02:00:00',    'partition': 'day'},
-	'facebook/llama/13B':		{'mem': '78G',  'time': '04:00:00',    'partition': 'day'},
-	'facebook/llama/30B':		{'mem': '169G', 'time': '08:00:00',    'partition': 'bigmem'},
+	'facebook/llama/7B':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/llama/13B':		{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/llama/30B':		{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 	'facebook/llama/65B':		{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 }
 
 # these models need more than a day to run, 
 # so we use this to add an option to save tmp files
 # from which we can resume evaluation
-NEED_MORE_THAN_ONE_DAY: Set[str] = {
-	'facebook/opt-175b',
-}
+NEED_MORE_THAN_ONE_DAY: Set[str] = (
+	{k for k in BIG_MODELS.keys() if BIG_MODELS[k]['time'].startswith('01-')}	
+)
 
 def create_scripts() -> None:
 	with tqdm(total=len(DATASETS) * len(ALL_MODELS)) as pbar:
@@ -75,13 +75,13 @@ def create_scripts() -> None:
 					MODEL_BASENAME=model_basename,
 					DATASET=dataset,
 					MODEL_FULLNAME=model,
-					MEM=BIG_MODELS.get(or_model, {}).get('mem', '64G'),
+					MEM=BIG_MODELS.get(or_model, {}).get('mem', '48G'),
 					PART=BIG_MODELS.get(or_model, {}).get('partition', 'day'),
-					TIME=BIG_MODELS.get(or_model, {}).get('time', '00:20:00'),
+					TIME=BIG_MODELS.get(or_model, {}).get('time', '01:00:00'),
 					FILENAME=script_filename,
 				)
 				
-				with open(script_filename, 'wt') as out_file:
+				with open(script_filename, 'wt', encoding='utf8') as out_file:
 					_ = out_file.write(script)
 				
 				pbar.update(1)

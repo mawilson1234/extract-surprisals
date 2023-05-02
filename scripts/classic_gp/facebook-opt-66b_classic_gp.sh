@@ -16,4 +16,5 @@ echo ""
 
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/opt-66b' \
-	--test_file data/classic_gp/classic_gp.txt.gz
+	--test_file data/classic_gp/classic_gp.txt.gz \
+	--save_tmp
