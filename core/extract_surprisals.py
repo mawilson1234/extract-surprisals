@@ -816,9 +816,7 @@ def align_words_to_subword_tokens(
 	'''
 	# pop works backward
 	num_words = len(words)
-	original_tokens = tokens.copy()	
 	tokens = tokens[::-1]
-	original_words = words.copy()
 	words = words[::-1]
 	
 	# handle uncased and cased tokenizers
@@ -830,35 +828,32 @@ def align_words_to_subword_tokens(
 	if uncased:
 		words = [w.lower() for w in words]
 	
-	try:
-		aligned = []
-		while tokens:
-			aligned_tokens = [tokens.pop()]
-			word = words.pop()
-			
-			# we need to replace all spaces here rather than
-			# just stripping because some tokenizer don't handle
-			# words with punctuation in the middle correctly
-			# e.g, 'bert-large-cased' tokenizes 're-wrapped' as
-			# [1231, 118, 4293], but decodes that sequence as
-			# 're - wrapped', with spaces in the middle.
-			if 'babyt5' in tokenizer.name_or_path:
-				# babyt5 doesn't tokenize commas correctly, but
-				# as its <unk> token. in general, an <unk> token
-				# should not be used to identify a word, since
-				# not all <unk> tokens have the same source.
-				# in this case, we build in a very specific hack.
-				# we don't want a more general solution, since
-				# that could mask an actually problematic case
-				while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != re.sub('[0-9,]', tokenizer.unk_token, word):
-					aligned_tokens += [tokens.pop()]
-			else:
-				while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != word:
-					aligned_tokens += [tokens.pop()]
-			
-			aligned.append(aligned_tokens)
-	except Exception:
-		breakpoint()
+	aligned = []
+	while tokens:
+		aligned_tokens = [tokens.pop()]
+		word = words.pop()
+		
+		# we need to replace all spaces here rather than
+		# just stripping because some tokenizer don't handle
+		# words with punctuation in the middle correctly
+		# e.g, 'bert-large-cased' tokenizes 're-wrapped' as
+		# [1231, 118, 4293], but decodes that sequence as
+		# 're - wrapped', with spaces in the middle.
+		if 'babyt5' in tokenizer.name_or_path:
+			# babyt5 doesn't tokenize commas correctly, but
+			# as its <unk> token. in general, an <unk> token
+			# should not be used to identify a word, since
+			# not all <unk> tokens have the same source.
+			# in this case, we build in a very specific hack.
+			# we don't want a more general solution, since
+			# that could mask an actually problematic case
+			while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != re.sub('[0-9,]', tokenizer.unk_token, word):
+				aligned_tokens += [tokens.pop()]
+		else:
+			while re.sub(r'\s', '', tokenizer.decode(aligned_tokens)) != word:
+				aligned_tokens += [tokens.pop()]
+	
+		aligned.append(aligned_tokens)
 	
 	assert len(aligned) == num_words, (
 		f'Unable to find {num_words} in text.'
