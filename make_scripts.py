@@ -42,8 +42,7 @@ BIG_MODELS: Dict[str, Dict[str,str]] = {
 	'facebook/llama-hf/65B':	{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 	'meta-llama/Llama-2-7b-hf':	{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
 	'meta-llama/Llama-2-13b-hf':{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
-	'meta-llama/Llama-2-70b-hf':{'mem': '320G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-
+	'meta-llama/Llama-2-70b-hf':{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 }
 
 # these models need more than a day to run, 
@@ -66,7 +65,7 @@ def create_scripts() -> None:
 				
 				if model in NEED_MORE_THAN_ONE_DAY:
 					script += ' \\\n\t--save_tmp'
-
+				
 				# deal with slashes in model names
 				model_basename = re.sub(r'[\\/]', '-', model)
 				or_model = model

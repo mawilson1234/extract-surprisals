@@ -2,7 +2,7 @@
 
 #SBATCH --job-name=meta-llama-Llama-2-70b-hf-relative_clauses
 #SBATCH --output=joblogs/%x_%j.txt
-#SBATCH --mem=320G
+#SBATCH --mem=288G
 #SBATCH --partition=bigmem
 #SBATCH --time=01-00:00:00
 #SBATCH --mail-type=END,FAIL,INVALID_DEPEND
