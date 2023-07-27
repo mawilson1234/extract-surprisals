@@ -277,6 +277,9 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		use_auth_token=model_args.use_auth_token,
 	)
 	
+	if model.name_or_path in LLAMA_MODELS and '-hf' in model.name_or_path:
+		model.resize_token_embeddings(len(tokenizer))
+	
 	if model_args.model_name_or_path in GPT2_MODELS:
 		tokenizer.pad_token = tokenizer.eos_token
 		model.config.pad_token_id = model.config.eos_token_id

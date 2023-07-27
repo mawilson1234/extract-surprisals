@@ -18,6 +18,9 @@ OPT_MODELS: Set[str] = (
 )
 
 LLAMA_MODELS: Set[str] = (
+	{f'facebook/llama/{i}B' for i in
+		{7, 13, 30, 65}
+	} |
 	{f'facebook/llama-hf/{i}B' for i in
 		{7, 13, 30, 65}
 	} |
