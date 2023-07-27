@@ -265,6 +265,9 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		if model_args.model_name_or_path in T5_MODELS:
 			tokenizer.mask_token_id = tokenizer.get_vocab()['<extra_id_0>']
 	
+	if tokenizer.name_or_path in LLAMA_MODELS and '-hf' in tokenizer.name_or_path:
+		tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+	
 	model = load_model(
 		model_args.model_name_or_path,
 		from_flax=model_args.from_flax,
