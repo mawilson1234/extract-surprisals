@@ -113,7 +113,7 @@ class ModelArguments:
 		metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
 	)
 	
-	use_auth_token: bool = field(
+	use_auth_token: str = field(
 		default=False,
 		metadata={
 			"help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
@@ -134,7 +134,7 @@ class ModelArguments:
 			del self.tokenizer_kwargs['use_fast']
 		
 		self.use_auth_token = None if not self.use_auth_token else self.use_auth_token
-		if os.path.isfile(os.path.expanduser(self.use_auth_token)):
+		if self.use_auth_token is not None and os.path.isfile(os.path.expanduser(self.use_auth_token)):
 			with open(os.path.expanduser(self.use_auth_token), 'rt') as in_file:
 				self.use_auth_token = in_file.read().strip()
 			
@@ -244,7 +244,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 			'for models on the Hugging Face hub. For LLaMA '
 			'use `load_llama_tokenizer` and `load_llama` instead.'
 		)
-	breakpoint()
+	
 	config = AutoConfig.from_pretrained(
 		model_args.config_name,
 		cache_dir=model_args.cache_dir,
