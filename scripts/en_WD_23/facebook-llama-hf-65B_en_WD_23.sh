@@ -17,5 +17,4 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/llama-hf/65B' \
 	--test_file data/en_WD_23/en_WD_23.txt.gz \
-	--tokenizer_name facebook/llama/tokenizer.model \
 	--save_tmp

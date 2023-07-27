@@ -60,11 +60,15 @@ def create_scripts() -> None:
 			for model in ALL_MODELS:
 				
 				script = SCRIPT_TEMPLATE
-				if model in LLAMA_MODELS:
+				
+				if model in LLAMA_MODELS and not '-hf' in model:
 					script += ' \\\n\t--tokenizer_name facebook/llama/tokenizer.model'
 				
 				if model in NEED_MORE_THAN_ONE_DAY:
 					script += ' \\\n\t--save_tmp'
+				
+				if 'Llama-2' in model:
+					script += ' \\\n\t--use_auth_token ~/.hf_auth_token'
 				
 				# deal with slashes in model names
 				model_basename = re.sub(r'[\\/]', '-', model)

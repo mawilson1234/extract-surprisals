@@ -17,4 +17,4 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Llama-2-7b-hf' \
 	--test_file data/relative_clauses/relative_clauses.txt.gz \
-	--tokenizer_name facebook/llama/tokenizer.model
+	--use_auth_token ~/.hf_auth_token

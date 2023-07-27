@@ -134,6 +134,10 @@ class ModelArguments:
 			del self.tokenizer_kwargs['use_fast']
 		
 		self.use_auth_token = None if not self.use_auth_token else self.use_auth_token
+		if os.path.isfile(os.path.expanduser(self.use_auth_token)):
+			with open(os.path.expanduser(self.use_auth_token), 'rt') as in_file:
+				self.use_auth_token = in_file.read().strip()
+			
 		self.from_flax = self.model_name_or_path in MUELLER_T5_MODELS
 
 @dataclass
@@ -240,7 +244,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 			'for models on the Hugging Face hub. For LLaMA '
 			'use `load_llama_tokenizer` and `load_llama` instead.'
 		)
-	
+	breakpoint()
 	config = AutoConfig.from_pretrained(
 		model_args.config_name,
 		cache_dir=model_args.cache_dir,

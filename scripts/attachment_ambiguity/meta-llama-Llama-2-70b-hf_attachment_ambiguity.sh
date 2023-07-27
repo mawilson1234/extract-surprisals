@@ -17,5 +17,5 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Llama-2-70b-hf' \
 	--test_file data/attachment_ambiguity/attachment_ambiguity.txt.gz \
-	--tokenizer_name facebook/llama/tokenizer.model \
-	--save_tmp
+	--save_tmp \
+	--use_auth_token ~/.hf_auth_token
