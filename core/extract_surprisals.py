@@ -234,7 +234,7 @@ def load_model(model_name_or_path: str, *args, **kwargs):
 
 def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 	'''Loads the tokenizer and model as specified in model_args.'''
-	if 'llama' in model_args.model_name_or_path:
+	if 'llama' in model_args.model_name_or_path and not '-hf' in model_args.model_name_or_path:
 		raise ValueError(
 			'`load_tokenizer_and_model` should only be used '
 			'for models on the Hugging Face hub. For LLaMA '
@@ -469,7 +469,7 @@ def preprocess_dataset(
 	
 	def preprocess_function(examples: List[str]) -> Dict:
 		'''Tokenizes a batch of string inputs.'''
-		if not 'llama' in tokenizer.name_or_path:
+		if not 'llama' in tokenizer.name_or_path or '-hf' in tokenizer.name_or_path:
 			model_inputs = tokenizer(
 				examples['text'], 
 				max_length=data_args.max_source_length, 
@@ -612,7 +612,7 @@ def evaluate_model(
 		collate_fn=pad_batch
 	)
 	
-	if not 'llama' in model.name_or_path:
+	if not 'llama' in model.name_or_path or '-hf' in model.name_or_path:
 		model.eval()
 	
 	# we need to make the directory early
@@ -821,7 +821,7 @@ def align_words_to_subword_tokens(
 	
 	# handle uncased and cased tokenizers
 	tokenizer_kwargs = dict()
-	if 'llama' in tokenizer.name_or_path:
+	if 'llama' in tokenizer.name_or_path and not '-hf' in tokenizer.name_or_path:
 		tokenizer_kwargs = dict(bos=False, eos=False)
 	
 	uncased = tokenizer.tokenize('A', **tokenizer_kwargs) == tokenizer.tokenize('a', **tokenizer_kwargs)
@@ -1059,7 +1059,7 @@ def tokenize_texts(tokenizer: AutoTokenizer, text: List[str]) -> List[List[int]]
 	'''
 	Tokenize a list of examples without special tokens for use during evaluation.
 	'''
-	if not 'llama' in tokenizer.name_or_path:
+	if not 'llama' in tokenizer.name_or_path or '-hf' in tokenizer.name_or_path:
 		tokenized = tokenizer(text, add_special_tokens=False)['input_ids']
 	else:
 		tokenized = [tokenizer.encode(ex, bos=False, eos=False) for ex in text]
@@ -1084,7 +1084,7 @@ def extract_surprisals() -> None:
 	
 	dataset = load_dataset('text', data_files={'test': data_args.test_file})
 	metadata = load_metadata(data_args.test_file)
-	if not 'llama' in model_args.model_name_or_path:
+	if not 'llama' in model_args.model_name_or_path or '-hf' in model_args.model_name_or_path:
 		tokenizer, model = load_HF_tokenizer_and_model(model_args)
 		dataset, test_dataset, metadata = preprocess_dataset(dataset=dataset, metadata=metadata, data_args=data_args, tokenizer=tokenizer)
 	else:
