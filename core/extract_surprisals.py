@@ -119,6 +119,7 @@ class ModelArguments:
 			"help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
 			"with private models)."
 		},
+		repr=False,
 	)
 	
 	def __post_init__(self):

@@ -88,7 +88,7 @@ def create_scripts() -> None:
 					MODEL_FULLNAME=model,
 					MEM=BIG_MODELS.get(or_model, {}).get('mem', '48G'),
 					PART=BIG_MODELS.get(or_model, {}).get('partition', 'day'),
-					TIME=BIG_MODELS.get(or_model, {}).get('time', '02:30:00'),
+					TIME=BIG_MODELS.get(or_model, {}).get('time', '06:00:00'),
 					FILENAME=script_filename,
 				)
 				
