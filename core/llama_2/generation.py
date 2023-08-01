@@ -121,7 +121,7 @@ class Llama:
         # to know which eos are actual eos and which are pads in the
         # calling context
         input_ids = input_ids.detach().clone()
-        input_ids[input ids == self.tokenizer.pad_id] = self.tokenizer.eos_id
+        input_ids[input_ids == self.tokenizer.pad_id] = self.tokenizer.eos_id
         
         return self.model.forward(tokens=input_ids)
     
