@@ -29,24 +29,27 @@ SCRIPT_TEMPLATE: str = '\n'.join([
 
 # these models need to be run with special options
 BIG_MODELS: Dict[str, Dict[str,str]] = {
-	'google/t5-efficient-xxl':	{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/opt-2.7b':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
-	'facebook/opt-6.7b':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
-	'facebook/opt-13b':			{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
-	'facebook/opt-30b':			{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/opt-66b':			{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/opt-175b':		{'mem': '700G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/llama/7B':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
-	'facebook/llama/13B':		{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
-	'facebook/llama/30B':		{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/llama/65B':		{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/llama-hf/7B':		{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
-	'facebook/llama-hf/13B':	{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
-	'facebook/llama-hf/30B':	{'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'facebook/llama-hf/65B':	{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
-	'meta-llama/Llama-2-7b-hf':	{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
-	'meta-llama/Llama-2-13b-hf':{'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
-	'meta-llama/Llama-2-70b-hf':{'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'google/t5-efficient-xxl':	    {'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/opt-2.7b':		    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/opt-6.7b':		    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/opt-13b':			    {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/opt-30b':			    {'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/opt-66b':			    {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/opt-175b':		    {'mem': '700G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/llama/7B':		    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/llama/13B':		    {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/llama/30B':		    {'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/llama/65B':		    {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/llama-hf/7B':		    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/llama-hf/13B':	    {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/llama-hf/30B':	    {'mem': '169G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/llama-hf/65B':	    {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'facebook/llama-2/llama-2-7b':	{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'facebook/llama-2/llama-2-13b': {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'facebook/llama-2/llama-2-70b': {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'meta-llama/Llama-2-7b-hf':	    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'meta-llama/Llama-2-13b-hf':    {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
+	'meta-llama/Llama-2-70b-hf':    {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 }
 
 # these models need more than a day to run, 
@@ -66,7 +69,7 @@ def create_scripts() -> None:
 				script = SCRIPT_TEMPLATE
 				
 				if model in LLAMA_MODELS and not '-hf' in model:
-					script += ' \\\n\t--tokenizer_name facebook/llama/tokenizer.model'
+					script += f' \\\n\t--tokenizer_name {os.path.join(os.path.dirname(model), "tokenizer.model")}'
 				
 				if model in NEED_MORE_THAN_ONE_DAY:
 					script += ' \\\n\t--save_tmp'

@@ -60,22 +60,25 @@ from transformers import (
 	T5ForConditionalGeneration
 )
 
+import llama
+import llama_2
+
 if __name__ == '__main__':
 	from constants import *
-	from llama import (
-		ModelArgs,
-		Transformer,
-		Tokenizer,
-		LLaMA
-	)
+	# from llama import (
+	# 	ModelArgs,
+	#	Transformer,
+	#	Tokenizer,
+	#	LLaMA
+	# )
 else:
 	from .constants import *
-	from .llama import (
-		ModelArgs, 
-		Transformer, 
-		Tokenizer, 
-		LLaMA
-	)
+	# from .llama import (
+	#	ModelArgs, 
+	#	Transformer, 
+	#	Tokenizer, 
+	#	LLaMA
+	# )
 
 # this is a dummy to let us 
 # put attributes in the expected 
@@ -291,14 +294,18 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 
 def load_llama_tokenizer(
 	tokenizer_path: str,
-) -> Tokenizer:
+) -> Union[llama.Tokenizer, llama_2.Tokenizer]:
 	'''
 	Loads the LLaMA tokenizer.
 	We do this separately so we can tokenize
 	the dataset before loading the model, and thus
 	automatically adjust the maximum sequence length.
 	'''
-	tokenizer = Tokenizer(model_path=tokenizer_path)
+	if 'llama-2' in tokenizer_path:
+		tokenizer = llama_2.Tokenizer(model_path=tokenizer_path)
+	else:
+		tokenizer = llama.Tokenizer(model_path=tokenizer_path)
+	
 	setattr(tokenizer, 'name_or_path', tokenizer_path)
 	setattr(tokenizer, 'pad_token_id', tokenizer.pad_id)
 	
@@ -306,16 +313,16 @@ def load_llama_tokenizer(
 
 def load_llama(
 	ckpt_dir: str,
-	tokenizer: Tokenizer,
+	tokenizer: Union[llama.Tokenizer, llama_2.Tokenizer],
 	max_seq_len: int,
 	max_batch_size: int = 1,
-) -> LLaMA:
+) -> Union[llama.LLaMA, llama_2.Llama]:
 	'''
 	Loads and returns a LLaMA generator.
 	
 	params:
 		ckpt_dir (str): the location of the directory containing the LLaMA checkpoint
-		tokenizer (Tokenizer): the tokenizer for the model
+		tokenizer (Union[llama.Tokenizer, llama_2.Tokenizer]): the tokenizer for the model
 		max_seq_len (int): the maximum sequence length that can be generated.
 						   must be at least the length of the longest (tokenized) input sequence
 		max_batch_size (int): at most this many examples will be run in a batch
@@ -327,8 +334,15 @@ def load_llama(
 	
 	with open(Path(ckpt_dir)/'params.json', 'r') as f:
 		params = json.loads(f.read())
+    
+    if 'llama-2' in ckpt_dir:
+		namespace = llama_2
+		LLaMA = llama_2.Llama
+	else:
+		namespace = llama
+		LLaMA = llama.LLaMA
 	
-	model_args = ModelArgs(
+	model_args = namespace.ModelArgs(
 		max_seq_len=max_seq_len, 
 		max_batch_size=max_batch_size,
 		**params
@@ -336,7 +350,7 @@ def load_llama(
 	
 	model_args.vocab_size = tokenizer.n_words
 	
-	model = Transformer(model_args)
+	model = namespace.Transformer(model_args)
 	
 	# Original copyright by tloen
 	# https://github.com/tloen/llama-int8/blob/main/example.py
@@ -553,7 +567,7 @@ def preprocess_dataset(
 	return dataset, test_dataset, metadata
 
 def evaluate_model(
-	model: Union[AutoModelForCausalLM, LLaMA],
+	model: Union[AutoModelForCausalLM, llama.LLaMA, llama_2.Llama],
 	tokenizer: AutoTokenizer,
 	examples: Dataset,
 	metadata: List[Dict],
@@ -565,7 +579,7 @@ def evaluate_model(
 	Saves results in data_args.output_dir as a csv.
 	
 	params:
-		model (Union[AutoModelForCausalLM, LLaMA]): the model to evaluate.
+		model (Union[AutoModelForCausalLM, llama.LLaMA, llama_2.Llama]): the model to evaluate.
 		tokenizer (AutoTokenizer)			: the tokenizer for the model
 		examples (Dataset)					: the dataset as input strings.
 		test_dataset (Dataset)				: the dataset to evaluate on
@@ -705,7 +719,7 @@ def get_model_task(model_name_or_path: str) -> str:
 	raise ValueError(f'{model_name_or_path!r} not found in `ALL_MODELS`!')
 
 def evaluate_batch(
-	model: Union[AutoModelForCausalLM, LLaMA],
+	model: Union[AutoModelForCausalLM, llama.LLaMA, llama_2.Llama],
 	tokenizer: AutoTokenizer,
 	inputs: Dict[str,torch.Tensor],
 	input_texts: List[str],
@@ -751,7 +765,7 @@ def get_model_eval_function(model_name_or_path: str) -> Callable:
 	raise ValueError(model_not_supported_message(model_name_or_path))
 
 def evaluate_LM_batch(
-	model: Union[AutoModelForCausalLM, LLaMA],
+	model: Union[AutoModelForCausalLM, llama.LLaMA, llama_2.Llama],
 	tokenizer: AutoTokenizer,
 	inputs: Dict[str,torch.Tensor],
 	input_texts: List[str],
