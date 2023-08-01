@@ -334,8 +334,8 @@ def load_llama(
 	
 	with open(Path(ckpt_dir)/'params.json', 'r') as f:
 		params = json.loads(f.read())
-    
-    if 'llama-2' in ckpt_dir:
+	
+	if 'llama-2' in ckpt_dir:
 		namespace = llama_2
 		LLaMA = llama_2.Llama
 	else:
