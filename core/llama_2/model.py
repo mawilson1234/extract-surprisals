@@ -21,6 +21,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class LlamaOutput():
+    # dummy class that allows us to
+    # access logit attributes like in the HF API
+    def __init__(self, logits):
+        self.logits = logits
+    
+    def __getitem__(self, key):
+        return getattr(self, key)
 
 @dataclass
 class ModelArgs:
@@ -327,5 +335,5 @@ class Transformer(nn.Module):
         for layer in self.layers:
             h = layer(h, start_pos, freqs_cis, mask)
         h = self.norm(h)
-        output = self.output(h).float()
+        output = LlamaOutput(logits=self.output(h))
         return output

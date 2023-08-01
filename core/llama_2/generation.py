@@ -108,73 +108,22 @@ class Llama:
         return round(sum(p.numel() for p in self.model.parameters() if p.requires_grad))
 
     @torch.inference_mode()
-    def __call__(self, tokens: torch.Tensor):
+    def __call__(self, input_ids: torch.Tensor, attention_mask: torch.Tensor = None) -> torch.Tensor:
         '''
-        Returns logits for the next token for each example
-        in a batch of tokens.
+        Returns logits for the next token predictions for each position
+        in a batch of inputs.
         '''
-        # we need to pad by at least one so that we get the right position for the
-        # longest sentence in the batch
-        tokens = F.pad(tokens, pad=(0, 1), value=self.tokenizer.pad_id)
-        each_prompt_size = sorted([
-            min((t == self.tokenizer.pad_id).nonzero(as_tuple=True)[0]).item() for t in tokens
-        ])
+        # pad_id is -1, which isn't in the model. for evaluation, we
+        # need to replace it with a token that is in the model. since
+        # we never care about predictions past the final actual token,
+        # this shouldn't cause any problems. we detach first so
+        # that we don't modify in-place, since we want to be able
+        # to know which eos are actual eos and which are pads in the
+        # calling context
+        input_ids = input_ids.detach().clone()
+        input_ids[input ids == self.tokenizer.pad_id] = self.tokenizer.eos_id
         
-        min_prompt_size = each_prompt_size[0]
-        max_prompt_size = each_prompt_size[-1]
-        
-        total_len = max_prompt_size + 1
-        
-        input_mask = tokens != self.tokenizer.pad_id
-        
-        start_pos = min_prompt_size
-        prev_pos = 0
-        
-        keep_logits = torch.tensor(())
-        
-        for cur_pos in range(start_pos, total_len):
-            # only get last logits
-            _logits = self.model.forward(tokens=tokens[:, prev_pos:cur_pos], start_pos=prev_pos)[:, -1, :]
-            
-            # this gets run the first time through the loop
-            # to initialize the tensor we'll use to store
-            # the logits for the next token for each example
-            if keep_logits.shape[0] == 0:
-                keep_logits = _logits
-            
-            # if the prompts are of unequal length,
-            # we want to get the logits for the next position for each prompt
-            if not torch.all(input_mask):
-                # get the inputs for which we want the logits.
-                # these are the ones where the input_mask is False,
-                # because that corresponds to the previous token
-                # being the end of the input
-                keep = torch.where(
-                    torch.all(
-                        torch.stack(
-                            (
-                                input_mask[:, cur_pos-1],
-                                input_mask[:, cur_pos] == False
-                            ),
-                            dim=-1
-                        ),
-                        dim=-1
-                    )
-                )
-                
-                keep_logits[keep] = _logits[keep]
-                
-                next_token = torch.full((_logits.shape[0],), self.tokenizer.eos_id)
-                
-                # only replace token if prompt has already been generated
-                next_token = torch.where(
-                    input_mask[:, cur_pos], tokens[:, cur_pos], next_token
-                )
-                tokens[:, cur_pos] = next_token
-            
-            prev_pos = cur_pos
-        
-        return keep_logits
+        return self.model.forward(tokens=input_ids)
     
     @torch.inference_mode()
     def generate(
