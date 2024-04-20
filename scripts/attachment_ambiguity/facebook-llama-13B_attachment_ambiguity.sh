@@ -11,10 +11,10 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/attachment_ambiguity/facebook-llama-13B_attachment_ambiguity.sh"
+echo "Running script scripts\attachment_ambiguity\facebook-llama-13B_attachment_ambiguity.sh"
 echo ""
 
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/llama/13B' \
 	--test_file data/attachment_ambiguity/attachment_ambiguity.txt.gz \
-	--tokenizer_name facebook/llama/tokenizer.model
+	--tokenizer_name facebook/llama\tokenizer.model

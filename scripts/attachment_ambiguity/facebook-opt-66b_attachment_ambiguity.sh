@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/attachment_ambiguity/facebook-opt-66b_attachment_ambiguity.sh"
+echo "Running script scripts\attachment_ambiguity\facebook-opt-66b_attachment_ambiguity.sh"
 echo ""
 
 python core/extract_surprisals.py \

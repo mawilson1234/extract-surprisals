@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/fillers/google-bert_uncased_L-2_H-768_A-12_fillers.sh"
+echo "Running script scripts\fillers\google-bert_uncased_L-2_H-768_A-12_fillers.sh"
 echo ""
 
 python core/extract_surprisals.py \

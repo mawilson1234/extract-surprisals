@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/fillers/yanaiela-roberta-base-epoch_64_fillers.sh"
+echo "Running script scripts\fillers\yanaiela-roberta-base-epoch_64_fillers.sh"
 echo ""
 
 python core/extract_surprisals.py \

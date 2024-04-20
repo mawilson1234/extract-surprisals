@@ -29,6 +29,9 @@ LLAMA_MODELS: Set[str] = (
 	} |
 	{f'meta-llama/Llama-2-{i}b-hf' for i in
 		{7, 13, 70}
+	} |
+	{f'meta-llama/Meta-Llama-3-{i}B' for i in
+		{8, 70}
 	}
 )
 
@@ -169,7 +172,10 @@ def get_tokenizer_kwargs(model_name_or_path: str) -> Dict:
 	if 'opt-175b' in model_name_or_path:
 		tokenizer_kwargs = {**tokenizer_kwargs, 'pretrained_model_name_or_path': 'facebook/opt-125m'}
 	
-	if 'llama' in model_name_or_path and not '-hf' in model_name_or_path:
+	if 'llama' in model_name_or_path and not (
+		'-hf' in model_name_or_path or 
+		'Llama-3' in model_name_or_path
+	):
 		tokenizer_kwargs = {**tokenizer_kwargs, 'pretrained_model_name_or_path': os.path.join(os.path.dirname(model_name_or_path), 'tokenizer.model')}
 	
 	return tokenizer_kwargs

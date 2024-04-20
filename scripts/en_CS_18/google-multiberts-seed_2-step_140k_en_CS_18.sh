@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/en_CS_18/google-multiberts-seed_2-step_140k_en_CS_18.sh"
+echo "Running script scripts\en_CS_18\google-multiberts-seed_2-step_140k_en_CS_18.sh"
 echo ""
 
 python core/extract_surprisals.py \

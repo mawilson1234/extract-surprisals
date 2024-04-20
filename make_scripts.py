@@ -50,6 +50,8 @@ BIG_MODELS: Dict[str, Dict[str,str]] = {
 	'meta-llama/Llama-2-7b-hf':	    {'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
 	'meta-llama/Llama-2-13b-hf':    {'mem': '78G',  'time': '16:00:00',    'partition': 'day'},
 	'meta-llama/Llama-2-70b-hf':    {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
+	'meta-llama/Meta-Llama-3-8B':	{'mem': '48G',  'time': '08:00:00',    'partition': 'day'},
+	'meta-llama/Meta-Llama-3-70B':  {'mem': '288G', 'time': '01-00:00:00', 'partition': 'bigmem'},
 }
 
 # these models need more than a day to run, 
@@ -68,13 +70,13 @@ def create_scripts() -> None:
 				
 				script = SCRIPT_TEMPLATE
 				
-				if model in LLAMA_MODELS and not '-hf' in model:
+				if model in LLAMA_MODELS and not ('-hf' in model or 'Llama-3' in model):
 					script += f' \\\n\t--tokenizer_name {os.path.join(os.path.dirname(model), "tokenizer.model")}'
 				
 				if model in NEED_MORE_THAN_ONE_DAY:
 					script += ' \\\n\t--save_tmp'
 				
-				if 'Llama-2' in model:
+				if any(name in model for name in {'Llama-2', 'Llama-3'}):
 					script += ' \\\n\t--use_auth_token ~/.hf_auth_token'
 				
 				# deal with slashes in model names

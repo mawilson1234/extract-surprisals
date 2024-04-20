@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/fillers/gpt2-xl_fillers.sh"
+echo "Running script scripts\fillers\gpt2-xl_fillers.sh"
 echo ""
 
 python core/extract_surprisals.py \

@@ -11,11 +11,11 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts/relative_clauses/facebook-llama-65B_relative_clauses.sh"
+echo "Running script scripts\relative_clauses\facebook-llama-65B_relative_clauses.sh"
 echo ""
 
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/llama/65B' \
 	--test_file data/relative_clauses/relative_clauses.txt.gz \
-	--tokenizer_name facebook/llama/tokenizer.model \
+	--tokenizer_name facebook/llama\tokenizer.model \
 	--save_tmp
