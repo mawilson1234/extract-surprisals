@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts\en_CS_18\google-bert_uncased_L-10_H-256_A-4_en_CS_18.sh"
+echo "Running script scripts/en_CS_18/google-bert_uncased_L-10_H-256_A-4_en_CS_18.sh"
 echo ""
 
 python core/extract_surprisals.py \

@@ -11,11 +11,11 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts\en_CS_18\facebook-llama-2-llama-2-70b_en_CS_18.sh"
+echo "Running script scripts/en_CS_18/facebook-llama-2-llama-2-70b_en_CS_18.sh"
 echo ""
 
 python core/extract_surprisals.py \
 	--model_name_or_path 'facebook/llama-2/llama-2-70b' \
 	--test_file data/en_CS_18/en_CS_18.txt.gz \
-	--tokenizer_name facebook/llama-2\tokenizer.model \
+	--tokenizer_name facebook/llama-2/tokenizer.model \
 	--save_tmp

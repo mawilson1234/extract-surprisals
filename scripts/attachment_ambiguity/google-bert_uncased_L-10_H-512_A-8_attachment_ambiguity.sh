@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts\attachment_ambiguity\google-bert_uncased_L-10_H-512_A-8_attachment_ambiguity.sh"
+echo "Running script scripts/attachment_ambiguity/google-bert_uncased_L-10_H-512_A-8_attachment_ambiguity.sh"
 echo ""
 
 python core/extract_surprisals.py \

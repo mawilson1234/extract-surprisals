@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts\relative_clauses\meta-llama-Llama-2-13b-hf_relative_clauses.sh"
+echo "Running script scripts/relative_clauses/meta-llama-Llama-2-13b-hf_relative_clauses.sh"
 echo ""
 
 python core/extract_surprisals.py \

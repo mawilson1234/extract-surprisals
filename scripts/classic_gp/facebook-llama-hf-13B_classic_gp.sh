@@ -11,7 +11,7 @@ module load miniconda
 
 source activate ext-surp
 
-echo "Running script scripts\classic_gp\facebook-llama-hf-13B_classic_gp.sh"
+echo "Running script scripts/classic_gp/facebook-llama-hf-13B_classic_gp.sh"
 echo ""
 
 python core/extract_surprisals.py \
