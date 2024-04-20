@@ -116,7 +116,7 @@ class ModelArguments:
 		metadata={"help": "The specific model version to use (can be a branch name, tag name or commit id)."},
 	)
 	
-	use_auth_token: str = field(
+	token: str = field(
 		default=False,
 		metadata={
 			"help": "Will use the token generated when running `transformers-cli login` (necessary to use this script "
@@ -137,10 +137,10 @@ class ModelArguments:
 			self.use_fast_tokenizer = self.tokenizer_kwargs['use_fast']
 			del self.tokenizer_kwargs['use_fast']
 		
-		self.use_auth_token = None if not self.use_auth_token else self.use_auth_token
-		if self.use_auth_token is not None and os.path.isfile(os.path.expanduser(self.use_auth_token)):
-			with open(os.path.expanduser(self.use_auth_token), 'rt') as in_file:
-				self.use_auth_token = in_file.read().strip()
+		self.token = None if not self.token else self.token
+		if self.token is not None and os.path.isfile(os.path.expanduser(self.token)):
+			with open(os.path.expanduser(self.token), 'rt') as in_file:
+				self.token = in_file.read().strip()
 			
 		self.from_flax = self.model_name_or_path in MUELLER_T5_MODELS
 
@@ -256,7 +256,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		model_args.config_name,
 		cache_dir=model_args.cache_dir,
 		revision=model_args.model_revision,
-		use_auth_token=model_args.use_auth_token
+		token=model_args.token
 	)
 	
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -264,7 +264,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		cache_dir=model_args.cache_dir,
 		use_fast=model_args.use_fast_tokenizer,
 		revision=model_args.model_revision,
-		use_auth_token=model_args.use_auth_token,
+		token=model_args.token,
 		**model_args.tokenizer_kwargs,
 	)
 	
@@ -284,7 +284,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		config=config,
 		cache_dir=model_args.cache_dir,
 		revision=model_args.model_revision,
-		use_auth_token=model_args.use_auth_token,
+		token=model_args.token,
 	)
 	
 	if model.name_or_path in LLAMA_MODELS and (
