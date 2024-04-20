@@ -256,7 +256,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		model_args.config_name,
 		cache_dir=model_args.cache_dir,
 		revision=model_args.model_revision,
-		token=model_args.token
+		use_auth_token=model_args.token
 	)
 	
 	tokenizer = AutoTokenizer.from_pretrained(
@@ -264,7 +264,7 @@ def load_HF_tokenizer_and_model(model_args: ModelArguments) -> Tuple:
 		cache_dir=model_args.cache_dir,
 		use_fast=model_args.use_fast_tokenizer,
 		revision=model_args.model_revision,
-		token=model_args.token,
+		use_auth_token=model_args.token,
 		**model_args.tokenizer_kwargs,
 	)
 	

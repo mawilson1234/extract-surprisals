@@ -17,4 +17,4 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Meta-Llama-3-8B' \
 	--test_file data/agreement/agreement.txt.gz \
-	--use_auth_token ~/.hf_auth_token
+	--token ~/.hf_auth_token

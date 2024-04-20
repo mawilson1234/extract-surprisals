@@ -77,7 +77,7 @@ def create_scripts() -> None:
 					script += ' \\\n\t--save_tmp'
 				
 				if any(name in model for name in {'Llama-2', 'Llama-3'}):
-					script += ' \\\n\t--use_auth_token ~/.hf_auth_token'
+					script += ' \\\n\t--token ~/.hf_auth_token'
 				
 				# deal with slashes in model names
 				model_basename = re.sub(r'[\\/]', '-', model)

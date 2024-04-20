@@ -18,4 +18,4 @@ python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Meta-Llama-3-70B' \
 	--test_file data/en_CS_18/en_CS_18.txt.gz \
 	--save_tmp \
-	--use_auth_token ~/.hf_auth_token
+	--token ~/.hf_auth_token

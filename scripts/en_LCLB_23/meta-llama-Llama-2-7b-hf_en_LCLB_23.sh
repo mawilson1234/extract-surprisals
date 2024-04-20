@@ -17,4 +17,4 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Llama-2-7b-hf' \
 	--test_file data/en_LCLB_23/en_LCLB_23.txt.gz \
-	--use_auth_token ~/.hf_auth_token
+	--token ~/.hf_auth_token

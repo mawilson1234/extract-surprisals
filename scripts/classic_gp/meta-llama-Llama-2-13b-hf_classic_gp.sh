@@ -17,4 +17,4 @@ echo ""
 python core/extract_surprisals.py \
 	--model_name_or_path 'meta-llama/Llama-2-13b-hf' \
 	--test_file data/classic_gp/classic_gp.txt.gz \
-	--use_auth_token ~/.hf_auth_token
+	--token ~/.hf_auth_token
